@@ -1,0 +1,16 @@
+set(SOURCE_FILES 
+   ${SOURCE_FILES}
+   ${CMAKE_CURRENT_SOURCE_DIR}/path.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/polepp.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/storage.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/stream.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/tree.hh
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/pole.h
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/alloctable.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/dirtree.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/header.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/storage.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/stream.hpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/util.hpp
+   PARENT_SCOPE
+   )

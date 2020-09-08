@@ -1,0 +1,12 @@
+set(SOURCE_FILES 
+   ${SOURCE_FILES}
+   ${CMAKE_CURRENT_SOURCE_DIR}/polepp.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/storage.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/pole.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/alloctable.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/dirtree.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/header.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/storage.cpp
+   ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/stream.cpp
+   PARENT_SCOPE
+   )
