@@ -87,8 +87,7 @@ namespace ole
 
 	// Implementation
 	private:
-		void init(tree<ole::storage_path>::sibling_iterator it, 
-			size_t index = 0);
+		void init();
 		void listEntries(std::vector<const POLE::DirEntry*>& result)
 		{ if (_storage) _storage->listEntries(result); }
 		// Determines if an entry identified by path can be deleted

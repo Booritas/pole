@@ -27,6 +27,9 @@
 #include "../includes/pole/detail/dirtree.hpp"
 #include "../includes/storage.hpp"
 
+#include <stack>
+#include <tuple>
+
 namespace ole
 {
 	namespace detail
@@ -60,40 +63,52 @@ namespace ole
 		if (!_storage || _storage->result() != POLE::Storage::Ok)
 			return;
 
-		init(_storages.begin());
+	    init();
 		/*if (_paths.size() == 0)
 			return;*/
 		_good = true;
 	}
 
-	void compound_document::init(tree<ole::storage_path>::sibling_iterator it, size_t index)
+	void compound_document::init()
 	{
-		if (index == 0)
-			it = _storages.insert(_storages.begin(), ole::storage_path("/"));
+		typedef tree<ole::storage_path>::sibling_iterator Itr;
 
-		std::vector<const POLE::DirEntry*> entries;
-		_storage->listEntries(entries);
+		auto startIt = _storages.insert(_storages.begin(), ole::storage_path("/"));
 
-		for (std::vector<const POLE::DirEntry*>::iterator entry_it = entries.begin();
-			entry_it != entries.end(); entry_it++)
+		std::stack<Itr> items;
+		items.push(startIt);
+
+		while(!items.empty())
 		{
-			std::string _defpath;
-			_storage->path(_defpath);
-			if (_defpath[_defpath.size() - 1] != '/')
-				_defpath += "/";
-			_defpath += (*entry_it)->name();
-			if ((*entry_it)->type() == 1)
+			Itr it = items.top();
+			items.pop();
+			std::vector<const POLE::DirEntry*> entries;
+			std::string storagePath = it->string();
+			bool success = _storage->enterDirectory(storagePath);
+			if(success)
 			{
-				ole::storage_path p(_defpath);
-				tree<ole::storage_path>::sibling_iterator _newit = _storages.append_child(it, p);
-				_storage->enterDirectory(_defpath);
-				init(_newit, ++index);
+				_storage->listEntries(entries);
+
+				for (auto entry_it = entries.begin(); entry_it != entries.end(); entry_it++)
+				{
+					std::string entry_path = storagePath;
+					if (entry_path[entry_path.size() - 1] != '/')
+						entry_path += "/";
+					entry_path += (*entry_it)->name();
+
+					if ((*entry_it)->type() == 1)
+					{
+						ole::storage_path spath(entry_path);
+						Itr _newit = _storages.append_child(it, spath);
+						items.push(_newit);
+					}
+					else
+					{
+						POLE::Stream* _defstream = _storage->stream(entry_path, true);
+						(*it).add_child(ole::stream_path(_defstream, entry_path));
+					}
+				}
 				_storage->leaveDirectory();
-			}
-			else
-			{
-				POLE::Stream* _defstream = _storage->stream(_defpath, true);
-				(*it).add_child(ole::stream_path(_defstream, _defpath));
 			}
 		}
 	}

@@ -50,9 +50,10 @@ Header::Header()
 
 bool Header::valid() const
 {
+  const uint32_t sector_size((1 << _b_shift) / 4 - 1);
   if( _threshold != 4096 ) return false;
   if( _num_bat == 0 ) return false; //ok
-  if( (_num_bat > 109) && (_num_bat > ((_num_mbat * 127) + 109))) return false; //ok
+  if( (_num_bat > 109) && (_num_bat > ((_num_mbat * sector_size) + 109))) return false; //ok
   if( (_num_bat < 109) && (_num_mbat != 0) ) return false; //ok
   if( _s_shift > _b_shift ) return false;
   if( _b_shift <= 6 ) return false;

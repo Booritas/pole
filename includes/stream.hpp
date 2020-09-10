@@ -68,6 +68,11 @@ namespace ole
 
 			return _stream->tell();
 		}
+		std::streamoff pos() const
+		{
+			if (!_stream) return -1;
+			return _stream->tell();
+		}
 
 	// Implementation
 	private:
