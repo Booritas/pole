@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.1.2)
 project(pole)
 
+IF (NOT DEFINED CMAKE_INSTALL_PREFIX)
+        set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
+ENDIF()
+
 IF(WIN32)
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
@@ -23,9 +27,6 @@ endif()
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-#include(conanbuildinfo.cmake)
-#conan_basic_setup()
 
 add_subdirectory(includes)
 add_subdirectory(sources)
