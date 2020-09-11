@@ -1,5 +1,8 @@
 #pragma once
 #include "storage.hpp"
+#include <clocale>
+#include <codecvt>
+#include <string>
 
 namespace ole
 {
@@ -127,7 +130,7 @@ namespace ole
 		return value;
 	}
 
-    std::wstring readOleString(ole::basic_stream& stream)
+    std::string readOleString(ole::basic_stream& stream)
 	{
 		uint16_t type(0);
 		stream.read((char*)&type, sizeof(type));
@@ -139,12 +142,14 @@ namespace ole
 		}
 		int32_t string_length;
 		stream.read((char*)&string_length, sizeof(string_length));
-		std::wstring value;
+		std::string value;
 		if (string_length>0)
 		{
-			std::vector<wchar_t> buffer(string_length);
-			stream.read((char*)buffer.data(), string_length * 2);
-			value = buffer.data();
+			std::vector<char> buffer(string_length,0);
+			stream.read((char*)buffer.data(), string_length);
+            std::u16string src((char16_t *)buffer.data());
+            std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
+            value = convert.to_bytes(src);
 		}
 		return value;
 	}

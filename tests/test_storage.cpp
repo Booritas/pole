@@ -91,6 +91,8 @@ TEST(storage, read_stream_double)
     ole::skipItems(contents_stream->stream(), 3);
     double value = ole::readOleDouble(contents_stream->stream());
     ASSERT_DOUBLE_EQ(value, 0.0645);
+    int scalingUnits = ole::readOleInt(contents_stream->stream());
+    ASSERT_EQ(scalingUnits, 76);
 }
 
 TEST(storage, read_stream_string)
@@ -105,6 +107,6 @@ TEST(storage, read_stream_string)
     auto contents_stream = scaling_storage->find_stream("/Image/Scaling/Contents");
     ASSERT_TRUE(contents_stream != scaling_storage->end());
     ole::skipItems(contents_stream->stream(), 1);
-    std::wstring key = ole::readOleString(contents_stream->stream());
-    ASSERT_TRUE(key.compare(L"Scaling124") == 0);
+    std::string key = ole::readOleString(contents_stream->stream());
+    ASSERT_EQ(key, std::string("Scaling124"));
 }
