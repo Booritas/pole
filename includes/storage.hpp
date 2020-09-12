@@ -38,7 +38,7 @@
 #include "pole/detail/util.hpp"
 #include "pole/pole.h"
 #include "path.hpp"
-#include "../includes/tree.hh"
+#include "tree.hh"
 
 namespace ole
 {
