@@ -179,10 +179,10 @@ DirEntry* DirTree::_entry( const std::string& name, bool create )
        
        // create a new entry
        DirEntry* parent = &_entries[index];
-	   DirEntry e(*it, (((*it).size()*2) + 2), 2, 0, 0, DirEntry::End, DirEntry::End, parent->child(), entryCount() + 1);
+	   DirEntry e(*it, (ULONG16)(((*it).size()*2) + 2), 2, 0, 0, DirEntry::End, DirEntry::End, parent->child(), entryCount() + 1);
 	   _entries.push_back( e );
        index = entryCount()-1;
-       parent->set_child(index);
+       parent->set_child((ULONG32)index);
      }
    }
 

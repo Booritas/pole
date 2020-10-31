@@ -83,7 +83,7 @@ bool StorageIO::load()
 
 	// find size of input file
 	_stream->seekg( 0, std::ios::end );
-	_size = _stream->tellg();
+	_size = (ULONG32)_stream->tellg();
 
 	// load header
 	unsigned char* buffer = new unsigned char[512];
@@ -138,7 +138,7 @@ bool StorageIO::load()
 	}
 
 	// load big bat
-	ULONG32 buflen = blocks.size()*_bbat->block_size();
+	ULONG32 buflen = (ULONG32)(blocks.size()*_bbat->block_size());
 	if( buflen > 0 )
 	{
 		buffer = new unsigned char[ buflen ];  
@@ -151,7 +151,7 @@ bool StorageIO::load()
 	blocks.clear();
 	if (!_bbat->follow( _header->sbat_start(), blocks ))
 		return false;
-	buflen = blocks.size()*_bbat->block_size();
+	buflen = (ULONG32)(blocks.size()*_bbat->block_size());
 	if( buflen > 0 )
 	{
 		buffer = new unsigned char[ buflen ];  
@@ -164,7 +164,7 @@ bool StorageIO::load()
 	blocks.clear();
 	if (!_bbat->follow( _header->dirent_start(), blocks ))
 		return false;
-	buflen = blocks.size()*_bbat->block_size();
+	buflen = (ULONG32)(blocks.size()*_bbat->block_size());
 	buffer = new unsigned char[ buflen ];  
 	loadBigBlocks( blocks, buffer, buflen );
 	if (!_dirtree->load( buffer, buflen ))
@@ -348,7 +348,7 @@ void StorageIO::flush()
 		std::vector<ULONG32> blocks;
 		if (!_bbat->follow( _header->dirent_start(), blocks ))
 			return;
-		ULONG32 bufflen = blocks.size() * _bbat->block_size();
+		ULONG32 bufflen = (ULONG32)(blocks.size() * _bbat->block_size());
 		unsigned char *buffer = new unsigned char[bufflen];
 		if (!_dirtree->save(buffer, bufflen))
 			return;

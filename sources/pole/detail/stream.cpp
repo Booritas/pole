@@ -221,7 +221,7 @@ POLE::ULONG32 StreamImpl::write(const unsigned char* data, POLE::ULONG32 maxlen)
 		return 0;
 	if((maxlen + _pos) > _entry->size())
 	{
-		maxlen = _entry->size() - _pos;
+		maxlen = (ULONG32)(_entry->size() - _pos);
 		_state |= StreamImpl::Eof;
 	}
 	else
@@ -237,7 +237,7 @@ POLE::ULONG32 StreamImpl::write(const unsigned char* data, POLE::ULONG32 maxlen)
 	if (_entry->size() < _io->header()->threshold())
 	{// small file
 		std::vector<ULONG32> _sbroot_entry = _io->sb_blocks();
-		ULONG32 index = _pos / _io->small_block_size();
+		ULONG32 index = (ULONG32)(_pos / _io->small_block_size());
 
 		if(index > _sbroot_entry.size()) 
 			return 0;
@@ -276,7 +276,7 @@ POLE::ULONG32 StreamImpl::write(const unsigned char* data, POLE::ULONG32 maxlen)
 	else
 	{// big file
 		// Ordinal of the first block for writing
-		ULONG32 index = _pos / _io->big_block_size();
+		ULONG32 index = (ULONG32)(_pos / _io->big_block_size());
 		if(index > _blocks.size()) 
 			return 0;
 		// Offset inside this block

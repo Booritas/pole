@@ -42,8 +42,8 @@ namespace ole
 	
 	// Operations
 	public:
-		std::streamsize read(char* buf, std::streamsize n) { return _stream ? _stream->read((unsigned char *)buf, n): 0; }
-		ole::basic_stream& write(const char* buf, std::streamsize n) { _stream->write((unsigned char *)buf, n); return *this; }
+		std::streamsize read(char* buf, std::streamsize n) { return _stream ? _stream->read((unsigned char *)buf, (unsigned long)n): 0; }
+		ole::basic_stream& write(const char* buf, std::streamsize n) { _stream->write((unsigned char *)buf, (POLE::ULONG32)n); return *this; }
 		ole::basic_stream& operator=( const ole::basic_stream& other ) { _stream = other._stream; return *this; }
 		std::streamoff seek(std::streamoff off, std::ios::seekdir way, std::ios::openmode which = std::ios::in) 
 		{
@@ -64,7 +64,7 @@ namespace ole
 					break;
 			}
 			if (_stream)
-				_stream->seek(_position);
+				_stream->seek((unsigned long)_position);
 
 			return _stream->tell();
 		}

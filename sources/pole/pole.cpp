@@ -137,7 +137,7 @@ const std::string& Stream::path() const
 unsigned long Stream::tell() const
 {
 #pragma warning( disable : 4267 ) // conversion from 'size_t' to 'unsigned int'
-  return impl ? impl->tell() : 0;
+  return impl ? (unsigned long)impl->tell() : 0;
 #pragma warning( default : 4267 ) // conversion from 'size_t' to 'unsigned int'
 }
 
@@ -169,7 +169,7 @@ int Stream::getch()
 unsigned long Stream::read( unsigned char* data, unsigned long maxlen )
 {
 #pragma warning( disable : 4267 ) // conversion from 'size_t' to 'unsigned int'
-  return impl ? impl->read( data, maxlen ) : 0;
+  return impl ? (unsigned long)impl->read( data, maxlen ) : 0;
 #pragma warning( default : 4267 ) // conversion from 'size_t' to 'unsigned int'
 }
 
