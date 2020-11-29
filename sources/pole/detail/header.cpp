@@ -19,6 +19,7 @@
 
 
 #include <iostream>
+#include <string.h>
 #include "../../../includes/pole/detail/util.hpp"
 #include "../../../includes/pole/detail/alloctable.hpp"
 #include "../../../includes/pole/detail/header.hpp"

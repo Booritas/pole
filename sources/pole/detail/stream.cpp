@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <string.h>
 #include "../../../includes/pole/detail/util.hpp"
 #include "../../../includes/pole/detail/header.hpp"
 #include "../../../includes/pole/detail/dirtree.hpp"
@@ -203,12 +204,12 @@ void StreamImpl::update_cache()
 /*
 para escribir:
 1. El entry de cada stream contiene el bloque en que comienza, hay que cargarlos todos en un vector utilizando el follow de la clase AllocTable.
-2. Para conocer en que bloque del stream se debe comenzar a escribir, esto se hace dividiendo el offset con respecto al inicio del stream entre el tamaño de cada bloque.
-3. Para calcular el offset dentro de ese bloque se toma el reto de la división anterior.
-4. Para conocer el desplazamiento físico donde hay que escribir en el fichero se suma el offset dentro del bloque y se suma con el offset del bloque en el que se va a escribir, este último se calcula como el (bloque*512)+512.
-5. Para saber la cantidad de bytes afectados en un bloque dado se resta el tamaño del bloque entre el offset dentro del bloque. Si es menos, entonces todo pertenece a ese bloque, si es mayor, entonces se escriben los bytes desde el desplazamiento inicial hasta el final del bloque y el resto pertenece al bloque adyacente.
-6. Es necesario incrementar el buffer de datos en la cantidad de bytes copiados y restar de la cantidad total de bytes lo que se copió.
-7. Repetir la operación con otro bloque si es necesario.
+2. Para conocer en que bloque del stream se debe comenzar a escribir, esto se hace dividiendo el offset con respecto al inicio del stream entre el tamaï¿½o de cada bloque.
+3. Para calcular el offset dentro de ese bloque se toma el reto de la divisiï¿½n anterior.
+4. Para conocer el desplazamiento fï¿½sico donde hay que escribir en el fichero se suma el offset dentro del bloque y se suma con el offset del bloque en el que se va a escribir, este ï¿½ltimo se calcula como el (bloque*512)+512.
+5. Para saber la cantidad de bytes afectados en un bloque dado se resta el tamaï¿½o del bloque entre el offset dentro del bloque. Si es menos, entonces todo pertenece a ese bloque, si es mayor, entonces se escriben los bytes desde el desplazamiento inicial hasta el final del bloque y el resto pertenece al bloque adyacente.
+6. Es necesario incrementar el buffer de datos en la cantidad de bytes copiados y restar de la cantidad total de bytes lo que se copiï¿½.
+7. Repetir la operaciï¿½n con otro bloque si es necesario.
 */
 POLE::ULONG32 StreamImpl::write(const unsigned char* data, POLE::ULONG32 maxlen)
 {
