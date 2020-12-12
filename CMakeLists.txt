@@ -25,7 +25,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/install/lib)
 add_subdirectory(includes)
 add_subdirectory(sources)
 
-add_library(${PROJECT_NAME} ${SOURCE_FILES})
+add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 
 file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/includes"
         DESTINATION ${CMAKE_BINARY_DIR}/install
