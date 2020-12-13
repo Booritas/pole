@@ -34,7 +34,7 @@
 
 // compound_document header
 #pragma once
-// #include <vector>
+#include <string>
 #include "pole/detail/util.hpp"
 #include "pole/pole.h"
 #include "path.hpp"
