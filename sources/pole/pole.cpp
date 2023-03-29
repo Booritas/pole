@@ -38,6 +38,11 @@ Storage::Storage( const char* filename )
   io = new StorageIO( filename );
 }
 
+Storage::Storage(const wchar_t* filename)
+{
+	io = new StorageIO(filename);
+}
+
 Storage::~Storage()
 {
   delete io;

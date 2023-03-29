@@ -42,6 +42,7 @@ public:
 
   // Constructs a storage with name filename.
   Storage( const char* filename );
+  Storage( const wchar_t* filename);
 
   // Destroys the storage.
   ~Storage();

@@ -69,7 +69,22 @@ namespace ole
 		_good = true;
 	}
 
-	void compound_document::init()
+    compound_document::compound_document(const std::wstring& filename)
+    {
+		if (filename.empty())
+			return;
+
+		_storage = new POLE::Storage(filename.c_str());
+		if (!_storage || _storage->result() != POLE::Storage::Ok)
+			return;
+
+		init();
+		/*if (_paths.size() == 0)
+			return;*/
+		_good = true;
+	}
+
+    void compound_document::init()
 	{
 		typedef tree<ole::storage_path>::sibling_iterator Itr;
 

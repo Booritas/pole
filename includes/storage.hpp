@@ -53,6 +53,7 @@ namespace ole
 		// Construction/destruction
 		compound_document(): _storage(NULL), _good(false) {}
 		compound_document(const std::string& filename);
+		compound_document(const std::wstring& filename);
 		~compound_document() { if (_storage) delete _storage; }
 
 	// Attributes

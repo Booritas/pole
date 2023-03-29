@@ -39,6 +39,7 @@ public:
 // Construction/destruction  
 public:
     StorageIO( const char* filename );
+	StorageIO(const wchar_t* filename);
 	StorageIO( std::iostream* stream );
     ~StorageIO();
     

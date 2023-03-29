@@ -46,6 +46,20 @@ StorageIO::StorageIO( const char* filename )
 	load();
 }
 
+StorageIO::StorageIO(const wchar_t* filename)
+{
+	m_dtmodified = false;
+	init();
+
+	// open the file, check for error
+	_result = OpenFailed;
+	std::fstream* file = new std::fstream(filename, std::ios::binary | std::ios::in | std::ios::out);
+	if (!file || file->fail()) return;
+	_file = file;
+	_stream = file;
+	load();
+}
+
 StorageIO::StorageIO( std::iostream* stream )
 {
 	init();
