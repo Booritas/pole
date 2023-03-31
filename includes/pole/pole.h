@@ -42,8 +42,9 @@ public:
 
   // Constructs a storage with name filename.
   Storage( const char* filename );
+#if defined(WIN32)
   Storage( const wchar_t* filename);
-
+#endif
   // Destroys the storage.
   ~Storage();
 // Attributes

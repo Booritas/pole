@@ -46,6 +46,7 @@ StorageIO::StorageIO( const char* filename )
 	load();
 }
 
+#if defined(WIN32)
 StorageIO::StorageIO(const wchar_t* filename)
 {
 	m_dtmodified = false;
@@ -59,6 +60,7 @@ StorageIO::StorageIO(const wchar_t* filename)
 	_stream = file;
 	load();
 }
+#endif
 
 StorageIO::StorageIO( std::iostream* stream )
 {

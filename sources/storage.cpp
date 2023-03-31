@@ -69,6 +69,7 @@ namespace ole
 		_good = true;
 	}
 
+#if defined(WIN32)
     compound_document::compound_document(const std::wstring& filename)
     {
 		if (filename.empty())
@@ -83,6 +84,7 @@ namespace ole
 			return;*/
 		_good = true;
 	}
+#endif
 
     void compound_document::init()
 	{

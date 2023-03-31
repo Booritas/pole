@@ -39,7 +39,9 @@ public:
 // Construction/destruction  
 public:
     StorageIO( const char* filename );
+#if defined(WIN32)
 	StorageIO(const wchar_t* filename);
+#endif	
 	StorageIO( std::iostream* stream );
     ~StorageIO();
     

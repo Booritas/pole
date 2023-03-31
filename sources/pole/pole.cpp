@@ -38,10 +38,12 @@ Storage::Storage( const char* filename )
   io = new StorageIO( filename );
 }
 
+#if defined(WIN32)
 Storage::Storage(const wchar_t* filename)
 {
 	io = new StorageIO(filename);
 }
+#endif
 
 Storage::~Storage()
 {
