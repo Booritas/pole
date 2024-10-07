@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 3.1.2)
 project(pole)
 
 
-set(CMAKE_CXX_STANDARD,14)
+set(CMAKE_CXX_STANDARD,17)
 
 IF(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -stdlib=libc++")
 ELSEIF(UNIX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -static-libstdc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -static-libstdc++")
 ELSEIF(WIN32)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
