@@ -18,13 +18,8 @@
 */
 
 
-#pragma warning( disable : 4267 ) // conversion from 'size_t' to 'unsigned int'
-#include "detail/header.cpp"
-#include "detail/alloctable.cpp"
-#include "detail/dirtree.cpp"
-#include "detail/storage.cpp"
-#include "detail/stream.cpp"
-#pragma warning( default : 4267 ) // conversion from 'size_t' to 'unsigned int'
+#include "../../includes/pole/detail/storage.hpp"
+#include "../../includes/pole/detail/stream.hpp"
 
 #include "../../includes/pole/pole.h"
 

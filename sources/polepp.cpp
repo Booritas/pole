@@ -19,8 +19,11 @@
 */
 
 //pole++ main source file
-
-#define BOOST_IOSTREAMS_NO_LIB 
-
-#include "pole/pole.cpp"
-#include "storage.cpp"
+//
+// This used to be the single translation unit of the library: it #included
+// pole/pole.cpp and storage.cpp, which in turn #included the five files under
+// pole/detail/. All of those are listed in sources/CMakeLists.txt and so were
+// also compiled on their own, leaving every symbol in the archive two or three
+// times and the linker reporting 152 LNK4006s. The standalone objects were the
+// ones it kept, so they are now the only ones: each source file is its own
+// translation unit and this aggregator is no longer part of the build.

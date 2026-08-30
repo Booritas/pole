@@ -1,6 +1,7 @@
+# polepp.cpp is deliberately absent: it aggregated the files below by
+# #including them, which compiled each of them twice. See the note in it.
 set(SOURCE_FILES 
    ${SOURCE_FILES}
-   ${CMAKE_CURRENT_SOURCE_DIR}/polepp.cpp
    ${CMAKE_CURRENT_SOURCE_DIR}/storage.cpp
    ${CMAKE_CURRENT_SOURCE_DIR}/pole/pole.cpp
    ${CMAKE_CURRENT_SOURCE_DIR}/pole/detail/alloctable.cpp
