@@ -414,8 +414,8 @@ tree<T, tree_node_allocator>::~tree()
 template <class T, class tree_node_allocator>
 void tree<T, tree_node_allocator>::head_initialise_() 
    { 
-   head = alloc_.allocate(1,0); // MSVC does not have default second argument 
-   feet = alloc_.allocate(1,0);
+   head = alloc_.allocate(1);
+   feet = alloc_.allocate(1);
 
    head->parent=0;
    head->first_child=0;
@@ -670,7 +670,7 @@ iter tree<T, tree_node_allocator>::append_child(iter position)
    {
    assert(position.node!=head);
 
-   tree_node* tmp = alloc_.allocate(1,0);
+   tree_node* tmp = alloc_.allocate(1);
    kp::constructor(&tmp->data);
    tmp->first_child=0;
    tmp->last_child=0;
@@ -698,7 +698,7 @@ iter tree<T, tree_node_allocator>::append_child(iter position, const T& x)
    // the API change.
    assert(position.node!=head);
 
-   tree_node* tmp = alloc_.allocate(1,0);
+   tree_node* tmp = alloc_.allocate(1);
    kp::constructor(&tmp->data, x);
    tmp->first_child=0;
    tmp->last_child=0;
@@ -754,7 +754,7 @@ iter tree<T, tree_node_allocator>::insert(iter position, const T& x)
       position.node=feet; // Backward compatibility: when calling insert on a null node,
                           // insert before the feet.
       }
-   tree_node* tmp = alloc_.allocate(1,0);
+   tree_node* tmp = alloc_.allocate(1);
    kp::constructor(&tmp->data, x);
    tmp->first_child=0;
    tmp->last_child=0;
@@ -774,7 +774,7 @@ iter tree<T, tree_node_allocator>::insert(iter position, const T& x)
 template <class T, class tree_node_allocator>
 typename tree<T, tree_node_allocator>::sibling_iterator tree<T, tree_node_allocator>::insert(sibling_iterator position, const T& x)
    {
-   tree_node* tmp = alloc_.allocate(1,0);
+   tree_node* tmp = alloc_.allocate(1);
    kp::constructor(&tmp->data, x);
    tmp->first_child=0;
    tmp->last_child=0;
@@ -802,7 +802,7 @@ template <class T, class tree_node_allocator>
 template <class iter>
 iter tree<T, tree_node_allocator>::insert_after(iter position, const T& x)
    {
-   tree_node* tmp = alloc_.allocate(1,0);
+   tree_node* tmp = alloc_.allocate(1);
    kp::constructor(&tmp->data, x);
    tmp->first_child=0;
    tmp->last_child=0;
@@ -862,7 +862,7 @@ iter tree<T, tree_node_allocator>::replace(iter position, const iterator_base& f
 
    // replace the node at position with head of the replacement tree at from
    erase_children(position);  
-   tree_node* tmp = alloc_.allocate(1,0);
+   tree_node* tmp = alloc_.allocate(1);
    kp::constructor(&tmp->data, (*from));
    tmp->first_child=0;
    tmp->last_child=0;
