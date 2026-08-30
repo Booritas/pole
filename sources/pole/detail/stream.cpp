@@ -121,20 +121,24 @@ std::streamsize StreamImpl::read( size_t pos, unsigned char* data, std::streamsi
   if ( _entry->size() < _io->header()->threshold() )
   {
     // small file
-    size_t index = pos / _io->small_block_size();
+    const ULONG32 small_block_size = _io->small_block_size();
+    if( small_block_size == 0 )
+      return 0;
+
+    size_t index = pos / small_block_size;
 
     if( index >= _blocks.size() ) 
 		return 0;
 
-    unsigned char* buf = new unsigned char[ _io->small_block_size() ];
-    size_t offset = pos % _io->small_block_size();
+    unsigned char* buf = new unsigned char[ small_block_size ];
+    size_t offset = pos % small_block_size;
     while( totalbytes < maxlen )
     {
       if( index >= _blocks.size() ) break;
-      ULONG32 read = _io->loadSmallBlock( _blocks[index], buf, _io->small_block_size() );
-	  if (read != _io->small_block_size())
+      ULONG32 read = _io->loadSmallBlock( _blocks[index], buf, small_block_size );
+	  if (read != small_block_size)
 		  break;
-      std::streamsize count = _io->small_block_size() - offset;
+      std::streamsize count = small_block_size - offset;
       if(count > (maxlen - totalbytes)) 
 		  count = maxlen - totalbytes;
       memcpy(data + totalbytes, buf + offset, count);
@@ -148,20 +152,24 @@ std::streamsize StreamImpl::read( size_t pos, unsigned char* data, std::streamsi
   else
   {
     // big file
-    size_t index = pos / _io->big_block_size();
+    const ULONG32 big_block_size = _io->big_block_size();
+    if( big_block_size == 0 )
+      return 0;
+
+    size_t index = pos / big_block_size;
     
     if( index >= _blocks.size() ) 
 		return 0;
     
-    unsigned char* buf = new unsigned char[ _io->big_block_size() ];
-    size_t offset = pos % _io->big_block_size();
+    unsigned char* buf = new unsigned char[ big_block_size ];
+    size_t offset = pos % big_block_size;
     while( totalbytes < maxlen )
     {
       if( index >= _blocks.size() ) break;
-      ULONG32 read = _io->loadBigBlock( _blocks[index], buf, _io->big_block_size() );
-	  if (read != _io->big_block_size())
+      ULONG32 read = _io->loadBigBlock( _blocks[index], buf, big_block_size );
+	  if (read != big_block_size)
 		  break;
-      std::streamsize count = _io->big_block_size() - offset;
+      std::streamsize count = big_block_size - offset;
       if( count > maxlen-totalbytes ) count = maxlen-totalbytes;
       memcpy( data+totalbytes, buf + offset, count );
       totalbytes += count;
@@ -238,12 +246,17 @@ POLE::ULONG32 StreamImpl::write(const unsigned char* data, POLE::ULONG32 maxlen)
 	if (_entry->size() < _io->header()->threshold())
 	{// small file
 		std::vector<ULONG32> _sbroot_entry = _io->sb_blocks();
-		ULONG32 index = (ULONG32)(_pos / _io->small_block_size());
+		const ULONG32 small_block_size = _io->small_block_size();
+		const ULONG32 big_block_size = _io->big_block_size();
+		if( small_block_size == 0 || big_block_size == 0 )
+			return 0;
+
+		ULONG32 index = (ULONG32)(_pos / small_block_size);
 
 		if(index > _sbroot_entry.size()) 
 			return 0;
 
-		ULONG32 offset = _pos % _io->small_block_size();
+		ULONG32 offset = _pos % small_block_size;
 
 
 		for (; ((index < _blocks.size()) && (count < maxlen)); ++index)
@@ -252,15 +265,15 @@ POLE::ULONG32 StreamImpl::write(const unsigned char* data, POLE::ULONG32 maxlen)
 			ULONG32 minifat_index = _blocks[index];
 			ULONG32 sbindex_offset = minifat_index % 8;
 			// Calculate the the root entry's big block index
-			ULONG32 position = minifat_index * _io->small_block_size();
-			ULONG32 bbindex = position / _io->big_block_size();
+			ULONG32 position = minifat_index * small_block_size;
+			ULONG32 bbindex = position / big_block_size;
 			// Fisical offset inside the file
 			ULONG32 bbindice = _sbroot_entry[bbindex];
-			ULONG32 fisical_offset = (((bbindice * _io->big_block_size()) + _io->big_block_size()) + 
-								     (sbindex_offset * _io->small_block_size())) + offset;
+			ULONG32 fisical_offset = (((bbindice * big_block_size) + big_block_size) + 
+								     (sbindex_offset * small_block_size)) + offset;
 
 			// Amount of bytes that can actually be written
-			ULONG32 canwrite = _io->small_block_size() - offset;
+			ULONG32 canwrite = small_block_size - offset;
 			if (canwrite > data_len )
 				canwrite = data_len;
 
@@ -277,19 +290,23 @@ POLE::ULONG32 StreamImpl::write(const unsigned char* data, POLE::ULONG32 maxlen)
 	else
 	{// big file
 		// Ordinal of the first block for writing
-		ULONG32 index = (ULONG32)(_pos / _io->big_block_size());
+		const ULONG32 big_block_size = _io->big_block_size();
+		if( big_block_size == 0 )
+			return 0;
+
+		ULONG32 index = (ULONG32)(_pos / big_block_size);
 		if(index > _blocks.size()) 
 			return 0;
 		// Offset inside this block
-		ULONG32 offset = _pos % _io->big_block_size();
+		ULONG32 offset = _pos % big_block_size;
 
 		for (; ((index < _blocks.size()) && (count < maxlen)); ++index)
 		{
 			// Fisical offset inside the file
-			ULONG32 fisical_offset = ((_blocks[index] * _io->big_block_size()) + _io->big_block_size() + offset);
+			ULONG32 fisical_offset = ((_blocks[index] * big_block_size) + big_block_size + offset);
 
 			// Amount of bytes that can actually be written
-			ULONG32 canwrite = _io->big_block_size() - offset;
+			ULONG32 canwrite = big_block_size - offset;
 			if (canwrite > data_len )
 				canwrite = data_len;
 
