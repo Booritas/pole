@@ -32,6 +32,11 @@ class StreamImpl
 {
 public:
 	enum {Eof = 1, Bad = 2};
+	// Values for the positional read()'s eof_report out-param. NoRead means the
+	// call returned before reading anything, so no flag update is due -- which
+	// is how the cursor overload reproduces the pre-split behaviour, where the
+	// sanity guards returned before _state was ever written.
+	enum { NoRead = -1, InBounds = 0, Clamped = 1 };
 	static const std::string null_path;
 
 // Construction/destruction  
@@ -74,7 +79,7 @@ public:
 	// cursor-based overload needs in order to keep setting Eof exactly as it
 	// used to.
 	std::streamsize read( size_t pos, unsigned char* data, std::streamsize maxlen,
-	                      bool* hit_eof = 0 ) const;
+	                      int* eof_report = 0 ) const;
     std::streamsize read( unsigned char* data, std::streamsize maxlen );
 
 	POLE::ULONG32 write(const unsigned char* data, POLE::ULONG32 maxlen);

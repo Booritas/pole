@@ -101,10 +101,10 @@ int StreamImpl::getch()
 }
 
 std::streamsize StreamImpl::read( size_t pos, unsigned char* data,
-                                  std::streamsize maxlen, bool* hit_eof ) const
+                                  std::streamsize maxlen, int* eof_report ) const
 {
-  if (hit_eof)
-	  *hit_eof = false;
+  if (eof_report)
+	  *eof_report = StreamImpl::NoRead;
   // sanity checks
   if (!_entry)
 	  return 0;
@@ -112,11 +112,13 @@ std::streamsize StreamImpl::read( size_t pos, unsigned char* data,
 	  return 0;
   if( maxlen == 0 )
 	  return 0;
+  if (eof_report)
+	  *eof_report = StreamImpl::InBounds;
   if ((maxlen + pos) > _entry->size())
   {
 	  maxlen = _entry->size() - pos;
-	  if (hit_eof)
-		  *hit_eof = true;
+	  if (eof_report)
+		  *eof_report = StreamImpl::Clamped;
   }
 
   std::streamsize totalbytes = 0;
@@ -188,13 +190,13 @@ std::streamsize StreamImpl::read( size_t pos, unsigned char* data,
 
 std::streamsize StreamImpl::read( unsigned char* data, std::streamsize maxlen )
 {
-  bool hit_eof = false;
-  std::streamsize bytes = read( (size_t)tell(), data, maxlen, &hit_eof );
+  int eof_report = StreamImpl::NoRead;
+  std::streamsize bytes = read( (size_t)tell(), data, maxlen, &eof_report );
   _pos += bytes;
 
-  if (hit_eof)
+  if (eof_report == StreamImpl::Clamped)
 	  _state |= StreamImpl::Eof;
-  else
+  else if (eof_report == StreamImpl::InBounds)
 	  _state &= StreamImpl::Eof;
 
   if (_pos == _entry->size())
@@ -213,9 +215,14 @@ void StreamImpl::update_cache()
 
   _cache_pos = _pos - ( _pos % _cache_size );
   size_t bytes = _cache_size;
-  if( _cache_pos + bytes > _entry->size() ) 
+  if( _cache_pos + bytes > _entry->size() )
 	  bytes = _entry->size() - _cache_pos;
-  _cache_size = read( _cache_pos, _cache_data, bytes );
+  int eof_report = StreamImpl::NoRead;
+  _cache_size = read( _cache_pos, _cache_data, bytes, &eof_report );
+  if (eof_report == StreamImpl::Clamped)
+	  _state |= StreamImpl::Eof;
+  else if (eof_report == StreamImpl::InBounds)
+	  _state &= StreamImpl::Eof;
 }
 
 /*

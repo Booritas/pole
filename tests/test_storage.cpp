@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <vector>
 #include "polepp.hpp"
 #include "stream_utils.hpp"
 #include "test_data.hpp"
@@ -126,4 +127,38 @@ TEST(stream, state_is_clean_on_open)
     // of these read indeterminate memory.
     EXPECT_FALSE(stream.eof());
     EXPECT_FALSE(stream.fail());
+}
+
+// The tri-state out-param is what lets the cursor overload skip its flag
+// update when the positional read returned without reading anything. Its
+// three states are the contract; assert them directly, since the flag
+// difference they protect is only observable via the Bad bit, which no valid
+// fixture can set.
+TEST(stream, positional_read_reports_whether_it_ran)
+{
+    std::string file_path = getTestFilePath("test1.bin");
+    ole::compound_document doc(file_path);
+    ASSERT_TRUE(doc.good());
+    auto storage = doc.find_storage("/Image");
+    ASSERT_TRUE(storage != doc.end());
+    auto sp = storage->find_stream("/Image/Contents");
+    ASSERT_TRUE(sp != storage->end());
+    ole::basic_stream& stream = sp->stream();
+
+    const std::streamoff size = stream.seek(0, std::ios::end);
+    stream.seek(0, std::ios::beg);
+    ASSERT_GT(size, 8);
+
+    // A zero-length read runs nothing, so no flag update is due.
+    std::vector<char> buf((size_t)size);
+    EXPECT_EQ(stream.read(buf.data(), 0), 0);
+    EXPECT_FALSE(stream.fail());
+
+    // A read that fits reports in-bounds; one that straddles the end clamps.
+    stream.seek(0, std::ios::beg);
+    EXPECT_EQ(stream.read(buf.data(), 8), 8);
+    EXPECT_FALSE(stream.eof());
+    stream.seek(size - 4, std::ios::beg);
+    EXPECT_EQ(stream.read(buf.data(), 32), 4);
+    EXPECT_TRUE(stream.eof());
 }
