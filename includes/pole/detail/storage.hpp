@@ -22,6 +22,7 @@
 
 #include <fstream>
 #include <list>
+#include <mutex>
 #include "header.hpp"
 #include "dirtree.hpp"
 #include "alloctable.hpp"
@@ -30,6 +31,40 @@ namespace POLE
 {
 
 class StreamImpl;
+
+// A read-only file handle whose reads carry their own offset, so any number of
+// threads may read one file through one descriptor with no shared cursor.
+//
+// This duplicates slideio::FileReader (src/slideio/core/tools/filereader.hpp in
+// the slideio repository) on purpose: pole is vendored as a submodule precisely
+// because it depends on nothing but the standard library, so it cannot use it.
+// Keep the two in step -- in particular the short-read retry loop, which exists
+// because pread is permitted to return fewer bytes than requested, and the
+// Windows open flags, which FileReader documents at length.
+class PositionalFile
+{
+public:
+	PositionalFile( const char* filename );
+#if defined(WIN32)
+	PositionalFile( const wchar_t* filename );
+#endif
+	~PositionalFile();
+
+	bool good() const;
+	// Reads up to n bytes from offset. Returns bytes actually read.
+	ULONG32 read_at( ULONG32 offset, unsigned char* dst, ULONG32 n ) const;
+
+private:
+#if defined(WIN32)
+	void* _handle;
+#else
+	int _fd;
+#endif
+
+	// no copy or assign
+	PositionalFile( const PositionalFile& );
+	PositionalFile& operator=( const PositionalFile& );
+};
 
 class StorageIO
 {
@@ -90,8 +125,8 @@ public:
     bool create( const char* filename );
 	bool enterDirectory( const std::string& directory ) { return _dirtree->enterDirectory( directory ); }
 	void leaveDirectory() { return _dirtree->leaveDirectory(); }
-	ULONG32 loadSmallBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen);
-    ULONG32 loadBigBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen);
+	ULONG32 loadSmallBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen) const;
+    ULONG32 loadBigBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen) const;
 	ULONG32 saveBlock(ULONG32 block, const unsigned char* buffer, ULONG32 maxlen);
 	// Delete an entry identified by path, then save changes 
 	// made to the document by calling flush
@@ -114,12 +149,14 @@ private:
     bool load();
     void close();
 
-	ULONG32 loadSmallBlocks( const std::vector<ULONG32>& blocks, unsigned char* buffer, ULONG32 maxlen );
-	ULONG32 loadBigBlocks( const std::vector<ULONG32>& blocks, unsigned char* buffer, ULONG32 maxlen );
+	ULONG32 loadSmallBlocks( const std::vector<ULONG32>& blocks, unsigned char* buffer, ULONG32 maxlen ) const;
+	ULONG32 loadBigBlocks( const std::vector<ULONG32>& blocks, unsigned char* buffer, ULONG32 maxlen ) const;
 //	ULONG32 saveBigBlock(ULONG32 fisical_offset, const unsigned char* data, ULONG32 len);
 
     std::iostream* _stream;
     std::fstream* _file;
+	PositionalFile* _pread;           // read path; NULL for the iostream* ctor
+	mutable std::mutex _stream_mutex; // guards _stream when _pread is NULL
 	ULONG32 _size;   // size of the storage stream
     int _result;     // result of last operation
     std::list<StreamImpl*> _streams; // current streams

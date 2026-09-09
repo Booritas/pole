@@ -27,8 +27,166 @@
 #include "../../../includes/pole/detail/storage.hpp"
 #include "../../../includes/pole/detail/stream.hpp"
 
+#if defined(WIN32)
+#include <windows.h>
+#include <cstring>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#include <cerrno>
+#include <cstring>
+#endif
+
 namespace POLE
 {
+
+// =========== PositionalFile ==========
+
+#if defined(WIN32)
+
+namespace
+{
+	// One manual-reset event per thread, reused across reads. FILE_FLAG_OVERLAPPED
+	// makes every ReadFile asynchronous, and an OVERLAPPED with no event of its own
+	// has the kernel signal the file handle instead -- which is ambiguous the moment
+	// two reads are in flight on one handle. The event holds no file state, so it is
+	// safe as a thread_local where a descriptor would not be; slideio::FileReader
+	// keeps the identical one for the identical reason. It is wrapped in a struct
+	// with a destructor because a raw thread_local HANDLE has none, and would leak
+	// the kernel object for every thread that ever read.
+	struct ReadEvent
+	{
+		HANDLE handle;
+		ReadEvent() : handle( CreateEventW( NULL, TRUE, FALSE, NULL ) ) {}
+		~ReadEvent() { if( handle ) CloseHandle( handle ); }
+	private:
+		// no copy or assign
+		ReadEvent( const ReadEvent& );
+		ReadEvent& operator=( const ReadEvent& );
+	};
+
+	ReadEvent& read_event()
+	{
+		thread_local ReadEvent event;
+		return event;
+	}
+}
+
+#endif
+
+PositionalFile::PositionalFile( const char* filename )
+{
+#if defined(WIN32)
+	// The flags mirror slideio::FileReader. FILE_FLAG_OVERLAPPED is what makes the
+	// per-read offset usable from several threads at once: without it the read does
+	// still start at the OVERLAPPED offset, but it also moves the handle's shared
+	// file pointer and the operations are serialised, which is the very thing this
+	// class exists to avoid.
+	// The share flags are FileReader's three, so the two copies of this primitive
+	// cannot silently diverge -- but note that they do not decide the question here.
+	// StorageIO holds the same file open through its std::fstream as well, and that
+	// handle's share mode is the binding one: FILE_SHARE_DELETE on this descriptor
+	// will not make a delete-while-open succeed while the fstream is also open.
+	// FILE_SHARE_READ | FILE_SHARE_WRITE is what MSVC's std::fstream itself asks
+	// for, so this second descriptor cannot be refused where the fstream was
+	// granted.
+	_handle = CreateFileA( filename, GENERIC_READ,
+	                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+	                       NULL, OPEN_EXISTING,
+	                       FILE_FLAG_OVERLAPPED | FILE_FLAG_RANDOM_ACCESS, NULL );
+#else
+	_fd = ::open( filename, O_RDONLY | O_CLOEXEC );
+#endif
+}
+
+#if defined(WIN32)
+PositionalFile::PositionalFile( const wchar_t* filename )
+{
+	_handle = CreateFileW( filename, GENERIC_READ,
+	                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+	                       NULL, OPEN_EXISTING,
+	                       FILE_FLAG_OVERLAPPED | FILE_FLAG_RANDOM_ACCESS, NULL );
+}
+#endif
+
+PositionalFile::~PositionalFile()
+{
+#if defined(WIN32)
+	if( _handle != INVALID_HANDLE_VALUE ) CloseHandle( _handle );
+#else
+	if( _fd >= 0 ) ::close( _fd );
+#endif
+}
+
+bool PositionalFile::good() const
+{
+#if defined(WIN32)
+	return _handle != INVALID_HANDLE_VALUE;
+#else
+	return _fd >= 0;
+#endif
+}
+
+ULONG32 PositionalFile::read_at( ULONG32 offset, unsigned char* dst, ULONG32 n ) const
+{
+	if( !good() || !dst ) return 0;
+
+#if !defined(WIN32)
+	// A read that makes no progress is retried a bounded number of times. An
+	// unbounded loop would turn a pathological source of EINTR -- a signal
+	// arriving faster than the read completes -- into a hang inside a library
+	// call; a real interruption succeeds on the next attempt.
+	const int max_retries = 1000;
+	int retries = 0;
+#endif
+
+	ULONG32 done = 0;
+	while( done < n )
+	{
+#if defined(WIN32)
+		ReadEvent& event = read_event();
+		if( !event.handle ) break;
+
+		OVERLAPPED ov;
+		memset( &ov, 0, sizeof(ov) );
+		// pole is already 32-bit-offset-limited: ULONG32 is unsigned long
+		// (util.hpp) and StorageIO::_size is assigned (ULONG32)tellg(), so a
+		// compound document over 4 GB is unsupported here already. Do not
+		// widen it in this change.
+		ov.Offset = (DWORD)( offset + done );
+		ov.OffsetHigh = 0;
+		ov.hEvent = event.handle;
+		ResetEvent( event.handle );
+
+		DWORD got = 0;
+		if( !ReadFile( _handle, dst + done, (DWORD)( n - done ), &got, &ov ) )
+		{
+			// Anything but ERROR_IO_PENDING ends the read. End-of-file is one of
+			// those: an overlapped read that starts at or past the end reports
+			// ERROR_HANDLE_EOF rather than a zero-byte success. A genuine failure
+			// ends it too, and the caller sees the short count.
+			if( GetLastError() != ERROR_IO_PENDING ) break;
+			// bWait = TRUE, so this returns only once the operation has completed
+			// or failed and the kernel no longer refers to this OVERLAPPED. It
+			// fails with ERROR_HANDLE_EOF when the pending read hit the end.
+			if( !GetOverlappedResult( _handle, &ov, &got, TRUE ) ) break;
+		}
+		if( got == 0 ) break;
+		done += got;
+#else
+		ssize_t got = ::pread( _fd, dst + done, (size_t)( n - done ), (off_t)( offset + done ) );
+		if( got < 0 )
+		{
+			if( errno == EINTR && ++retries <= max_retries ) continue;
+			break;
+		}
+		if( got == 0 ) break;
+		retries = 0;
+		done += (ULONG32)got;
+#endif
+	}
+	return done;
+}
 
 // =========== StorageIO ==========
 
@@ -43,6 +201,13 @@ StorageIO::StorageIO( const char* filename )
 	if( !file || file->fail() ) return;
 	_file = file;
 	_stream = file;
+	// A second, read-only descriptor, opened alongside the fstream rather than in
+	// place of it: the fstream's open mode is what decides whether this document
+	// opens at all, and that is deliberately left alone here. If the positional
+	// open fails, the read path falls back to seekg under a mutex, so no file that
+	// opens today stops opening.
+	_pread = new PositionalFile( filename );
+	if( !_pread->good() ) { delete _pread; _pread = NULL; }
 	load();
 }
 
@@ -58,6 +223,8 @@ StorageIO::StorageIO(const wchar_t* filename)
 	if (!file || file->fail()) return;
 	_file = file;
 	_stream = file;
+	_pread = new PositionalFile( filename );
+	if( !_pread->good() ) { delete _pread; _pread = NULL; }
 	load();
 }
 #endif
@@ -85,6 +252,7 @@ void StorageIO::init()
 	_result = Ok;
 	_file = NULL;
 	_stream = NULL;
+	_pread = NULL;
 
 	_header = new Header();
 	_dirtree = new DirTree();
@@ -238,14 +406,21 @@ void StorageIO::close()
 	delete _file;
 	_file = NULL;
 	}
+
+	if (_pread)
+	{
+		delete _pread;
+		_pread = NULL;
+	}
 }
 
-ULONG32 StorageIO::loadBigBlocks( const std::vector<ULONG32>& blocks, unsigned char* data, ULONG32 maxlen )
+ULONG32 StorageIO::loadBigBlocks( const std::vector<ULONG32>& blocks, unsigned char* data, ULONG32 maxlen ) const
 {
   // sentinel
-  if( !_stream ) return 0; 
   if( !data ) return 0;
-  if( !_stream->good() ) return 0;
+  // A positionally opened document must not be turned away on the state of an
+  // fstream that nothing on this path reads any more.
+  if( !_pread && ( !_stream || !_stream->good() ) ) return 0;
   if( blocks.size() < 1 ) return 0;
   if( maxlen == 0 ) return 0;
 
@@ -258,19 +433,31 @@ ULONG32 StorageIO::loadBigBlocks( const std::vector<ULONG32>& blocks, unsigned c
     ULONG32 p = (_bbat->block_size() < maxlen-bytes) ? _bbat->block_size() : maxlen-bytes;
     if( pos + p > _size ) 
 		p = _size - pos;
-	_stream->seekg( pos );
-	_stream->read( (char*)data + bytes, p );
-    bytes += p;
+    if( _pread )
+    {
+      // The count actually read, where the fstream branch below advances by the
+      // requested p whether or not that many bytes were there. StreamImpl::read
+      // checks the total against the size it expected, so the true count is what
+      // it wants.
+      bytes += _pread->read_at( pos, data + bytes, p );
+    }
+    else
+    {
+      std::lock_guard<std::mutex> lock( _stream_mutex );
+      _stream->seekg( pos );
+      _stream->read( (char*)data + bytes, p );
+      bytes += p;
+    }
   }
 
   return bytes;
 }
 
-ULONG32 StorageIO::loadBigBlock( ULONG32 block, unsigned char* data, ULONG32 maxlen )
+ULONG32 StorageIO::loadBigBlock( ULONG32 block, unsigned char* data, ULONG32 maxlen ) const
 {
   // sentinel
   if( !data ) return 0;
-  if( !_stream || !_stream->good() ) return 0;
+  if( !_pread && ( !_stream || !_stream->good() ) ) return 0;
   
   // wraps call for loadBigBlocks
   std::vector<ULONG32> blocks;
@@ -281,11 +468,11 @@ ULONG32 StorageIO::loadBigBlock( ULONG32 block, unsigned char* data, ULONG32 max
 }
 
 // return number of bytes which has been read
-ULONG32 StorageIO::loadSmallBlocks( const std::vector<ULONG32>& blocks, unsigned char* data, ULONG32 maxlen )
+ULONG32 StorageIO::loadSmallBlocks( const std::vector<ULONG32>& blocks, unsigned char* data, ULONG32 maxlen ) const
 {
   // sentinel
   if( !data ) return 0;
-  if( !_stream || !_stream->good() ) return 0;
+  if( !_pread && ( !_stream || !_stream->good() ) ) return 0;
   if( blocks.size() < 1 ) return 0;
   if( maxlen == 0 ) return 0;
 
@@ -321,11 +508,11 @@ ULONG32 StorageIO::loadSmallBlocks( const std::vector<ULONG32>& blocks, unsigned
   return bytes;
 }
 
-ULONG32 StorageIO::loadSmallBlock( ULONG32 block, unsigned char* data, ULONG32 maxlen )
+ULONG32 StorageIO::loadSmallBlock( ULONG32 block, unsigned char* data, ULONG32 maxlen ) const
 {
   // sentinel
   if( !data ) return 0;
-  if( !_stream || !_stream->good() ) return 0;
+  if( !_pread && ( !_stream || !_stream->good() ) ) return 0;
 
   // wraps call for loadSmallBlocks
   std::vector<ULONG32> blocks;
