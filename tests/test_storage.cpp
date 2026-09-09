@@ -242,8 +242,11 @@ TEST(stream, read_at_past_end_is_clamped)
 
 	const std::streamoff size = stream.size();
 	std::vector<char> buf(32);
-	// Straddling the end returns only what exists, and reports it by count --
-	// the destination is otherwise left untouched, so callers must check.
+	// This reaches StreamImpl::read's logical-size clamp, one layer above
+	// PositionalFile::read_at -- the block loaders below always request a
+	// full block, so PositionalFile's own short-read/EOF loop is never driven
+	// from here. The clamp reports the truncation by count -- the destination
+	// is otherwise left untouched, so callers must check.
 	const std::streamsize got = stream.read_at(size - 4, buf.data(), 32);
 	EXPECT_EQ(got, 4);
 	EXPECT_EQ(stream.read_at(size, buf.data(), 32), 0);
@@ -284,4 +287,35 @@ TEST(stream, concurrent_read_at_on_one_document)
 	for (auto& th : threads) th.join();
 	for (int t = 0; t < 8; ++t)
 		EXPECT_EQ(mismatches[t], 0) << "thread " << t << " read torn data";
+}
+
+// The const stream() overload exists to let a reader borrow a stream without
+// writing _ref_count -- that write was the last of the three read-path races
+// this work removes. Nothing else in the suite selects that overload: every
+// other test reaches its stream_path through the non-const find_stream, so
+// resolution picks the ref-count-bumping version. This pins the property
+// directly, through a genuinely const reference.
+TEST(stream, const_borrow_does_not_bump_the_ref_count)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	auto storage = doc.find_storage("/Image");
+	ASSERT_TRUE(storage != doc.end());
+	auto sp = storage->find_stream("/Image/Contents");
+	ASSERT_TRUE(sp != storage->end());
+
+	EXPECT_FALSE(sp->used()) << "a freshly opened stream_path is unclaimed";
+
+	// Borrowing through a const reference selects the const overload.
+	{
+		const ole::stream_path& borrowed = *sp;
+		const ole::basic_stream& stream = borrowed.stream();
+		EXPECT_GT(stream.size(), 0);
+	}
+	EXPECT_FALSE(sp->used()) << "the const borrow must not claim the stream";
+
+	// The non-const overload still does claim it -- unchanged behaviour.
+	(void)sp->stream();
+	EXPECT_TRUE(sp->used());
 }
