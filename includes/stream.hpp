@@ -43,6 +43,21 @@ namespace ole
 	// Operations
 	public:
 		std::streamsize read(char* buf, std::streamsize n) { return _stream ? _stream->read((unsigned char *)buf, (unsigned long)n): 0; }
+		// Positional read: carries its own offset, leaves the cursor and the
+		// flags alone, and is safe from several threads at once. Returns the
+		// number of bytes actually read -- a short return is the ONLY report of
+		// a truncated read, since the destination is left untouched.
+		std::streamsize read_at( std::streamoff offset, char* buf, std::streamsize n ) const
+		{
+			return _stream ? (std::streamsize)_stream->read_at( (unsigned long)offset,
+			                     (unsigned char*)buf, (unsigned long)n ) : 0;
+		}
+		// Size in bytes. Reads the directory entry, not the cursor, so callers
+		// no longer need seek(0, std::ios::end) to learn a length.
+		std::streamoff size() const
+		{
+			return _stream ? (std::streamoff)_stream->size() : 0;
+		}
 		ole::basic_stream& write(const char* buf, std::streamsize n) { _stream->write((unsigned char *)buf, (POLE::ULONG32)n); return *this; }
 		ole::basic_stream& operator=( const ole::basic_stream& other ) { _stream = other._stream; return *this; }
 		std::streamoff seek(std::streamoff off, std::ios::seekdir way, std::ios::openmode which = std::ios::in) 

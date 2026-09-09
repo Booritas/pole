@@ -198,3 +198,90 @@ TEST(dirtree, every_reported_path_resolves)
 	EXPECT_EQ(storages, 16);
 	EXPECT_EQ(streams, 19);
 }
+
+#include <thread>
+#include <vector>
+
+// read_at must return exactly what a cursor read returns, and must leave the
+// cursor where it found it -- that is what lets one document serve several
+// threads without each needing its own copy.
+TEST(stream, read_at_matches_cursor_read_and_does_not_move_it)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	auto storage = doc.find_storage("/Image");
+	ASSERT_TRUE(storage != doc.end());
+	auto sp = storage->find_stream("/Image/Contents");
+	ASSERT_TRUE(sp != storage->end());
+	ole::basic_stream& stream = sp->stream();
+
+	const std::streamoff size = stream.size();
+	ASSERT_GT(size, 16);
+
+	std::vector<char> viaCursor(16), viaPositional(16);
+	stream.seek(8, std::ios::beg);
+	ASSERT_EQ(stream.read(viaCursor.data(), 16), 16);
+
+	stream.seek(0, std::ios::beg);
+	ASSERT_EQ(stream.read_at(8, viaPositional.data(), 16), 16);
+	EXPECT_EQ(stream.pos(), 0) << "read_at moved the cursor";
+	EXPECT_EQ(viaCursor, viaPositional);
+}
+
+TEST(stream, read_at_past_end_is_clamped)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	auto storage = doc.find_storage("/Image");
+	ASSERT_TRUE(storage != doc.end());
+	auto sp = storage->find_stream("/Image/Contents");
+	ASSERT_TRUE(sp != storage->end());
+	ole::basic_stream& stream = sp->stream();
+
+	const std::streamoff size = stream.size();
+	std::vector<char> buf(32);
+	// Straddling the end returns only what exists, and reports it by count --
+	// the destination is otherwise left untouched, so callers must check.
+	const std::streamsize got = stream.read_at(size - 4, buf.data(), 32);
+	EXPECT_EQ(got, 4);
+	EXPECT_EQ(stream.read_at(size, buf.data(), 32), 0);
+}
+
+// The race this whole exercise is about: many threads reading one document.
+TEST(stream, concurrent_read_at_on_one_document)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	auto storage = doc.find_storage("/Image");
+	ASSERT_TRUE(storage != doc.end());
+	auto sp = storage->find_stream("/Image/Contents");
+	ASSERT_TRUE(sp != storage->end());
+	const ole::basic_stream& stream = sp->stream();
+
+	const std::streamoff size = stream.size();
+	const std::streamsize chunk = (size < 64) ? size : 64;
+	ASSERT_GT(chunk, 0);
+
+	std::vector<char> expected((size_t)chunk);
+	ASSERT_EQ(stream.read_at(0, expected.data(), chunk), chunk);
+
+	std::vector<std::thread> threads;
+	std::vector<int> mismatches(8, 0);
+	for (int t = 0; t < 8; ++t)
+	{
+		threads.emplace_back([&, t]() {
+			std::vector<char> got((size_t)chunk);
+			for (int i = 0; i < 200; ++i)
+			{
+				if (stream.read_at(0, got.data(), chunk) != chunk || got != expected)
+					++mismatches[t];
+			}
+		});
+	}
+	for (auto& th : threads) th.join();
+	for (int t = 0; t < 8; ++t)
+		EXPECT_EQ(mismatches[t], 0) << "thread " << t << " read torn data";
+}

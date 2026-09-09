@@ -66,6 +66,12 @@ namespace ole
 		// Return the contained stream
 		// TODO: Que hacer en caso que se pase de 255??
 		ole::basic_stream& stream() { _ref_count++; return _stream; }
+		// Borrow the stream without claiming it. The non-const overload bumps
+		// _ref_count, which only feeds used() and only entry_can_be_deleted()
+		// consults -- but that increment is a write, and a write on a shared
+		// object is a data race for concurrent readers. Read-only callers take
+		// this one.
+		const ole::basic_stream& stream() const { return _stream; }
 		// Decrement the Reference Count varaible
 		void close() { if (_ref_count > 0) _ref_count--; }
 

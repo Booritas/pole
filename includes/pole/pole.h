@@ -113,6 +113,10 @@ public: // Operations
   // Reads a block of data.
   unsigned long read( unsigned char* data, unsigned long maxlen );
 
+  // Reads a block of data from an explicit offset. Touches no cursor and no
+  // flags, so several threads may call it on one Stream at once.
+  unsigned long read_at( unsigned long offset, unsigned char* data, unsigned long maxlen ) const;
+
   // Write a block of data
   Stream& write(const unsigned char* data, ULONG32 len);
 
