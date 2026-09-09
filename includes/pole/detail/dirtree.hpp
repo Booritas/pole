@@ -138,7 +138,7 @@ public:
 private:
 	DirEntry* _entry( size_t index );
 	DirEntry* _entry( const std::string& name, bool create=false );
-	void find_siblings( std::vector<size_t>& result, ULONG32 index ) const;
+	void find_siblings( std::vector<size_t>& result, ULONG32 index, std::vector<char>& visited ) const;
 	size_t search_prev_link( size_t entry );
 	size_t find_rightmost_sibling(size_t left_sib);
 	bool set_prev_link(size_t prev_link, size_t entry, ULONG32 value);

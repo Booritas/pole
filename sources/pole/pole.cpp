@@ -83,9 +83,12 @@ Stream* Storage::stream( const std::string& name, bool reuse )
 
   // make absolute if necesary
   std::string fullName = name;
-  std::string path_;
-  path(path_);
-  if( name[0] != '/' ) fullName.insert( 0, path_ + "/" );
+  if( name[0] != '/' )
+  {
+    std::string path_;
+    path(path_);
+    fullName.insert( 0, path_ + "/" );
+  }
   
   // If a stream for this path already exists return it
   if (reuse)

@@ -191,10 +191,13 @@ DirEntry* DirTree::_entry( const std::string& name, bool create )
 }
 
 void DirTree::children( size_t index, std::vector<size_t>& result ) const
-{ 
+{
   const DirEntry* e = entry( index );
   if( e && ( e->valid() && e->child() < entryCount() ) )
-    find_siblings( result, e->child() );
+  {
+    std::vector<char> visited( entryCount(), 0 );
+    find_siblings( result, (ULONG32)e->child(), visited );
+  }
 }
 
 void DirTree::listDirectory(std::vector<const DirEntry*>& result) const
@@ -344,36 +347,38 @@ void DirTree::debug()
 }
 
 // helper function: recursively find siblings of index
-void DirTree::find_siblings( std::vector<size_t>& result, ULONG32 index ) const
+void DirTree::find_siblings( std::vector<size_t>& result, ULONG32 index,
+                             std::vector<char>& visited ) const
 {
   const DirEntry* e = entry( index );
   if( !e ) return;
   if( !e->valid() ) return;
 
-  // prevent infinite loop  
-  for( unsigned i = 0; i < result.size(); i++ )
-    if( result[i] == index ) return;
+  // Prevent infinite loop. O(1) against the caller's visited buffer rather
+  // than a linear scan of result per node: the three scans this replaces made
+  // find_siblings O(k^2) in the number of siblings, and /Image of a mosaic ZVI
+  // has ~514 of them. See section 3.3 of
+  // software-docs/specs/2026-09-09-zvi-concurrent-reads-design.md in the
+  // slideio repository.
+  if( index >= visited.size() ) return;
+  if( visited[index] ) return;
+  visited[index] = 1;
 
-  // add myself    
+  // add myself
   result.push_back( index );
-  
+
   // visit previous sibling, don't go infinitely
   ULONG32 prev = e->prev();
   if( ( prev > 0 ) && ( prev < entryCount() ) )
   {
-    for( unsigned i = 0; i < result.size(); i++ )
-      if( result[i] == prev ) prev = 0;
-    if( prev ) find_siblings( result, prev );
+    if( prev >= visited.size() || !visited[prev] ) find_siblings( result, prev, visited );
   }
-    
+
   // visit next sibling, don't go infinitely
   ULONG32 next = e->next();
   if( ( next > 0 ) && ( next < entryCount() ) )
   {
-    for( unsigned i = 0; i < result.size(); i++ )
-      if( result[i] == next ) next = 0;
-    if( next ) find_siblings( result, next );
-
+    if( next >= visited.size() || !visited[next] ) find_siblings( result, next, visited );
   }
 }
 
