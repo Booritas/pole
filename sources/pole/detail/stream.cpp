@@ -47,11 +47,14 @@ StreamImpl::StreamImpl( const StreamImpl& stream)
 	_cache_data = new unsigned char[4096];
 	for (std::streamsize i = 0; i<_cache_size; i++)
 		_cache_data[i] = stream._cache_data[i];
+
+	_state = stream._state;
 }
 
 void StreamImpl::init()
 {
   _pos = 0;
+  _state = 0;
   // prepare cache
   _cache_pos = 0;
   _cache_size = 4096; // optimal ?
@@ -97,23 +100,23 @@ int StreamImpl::getch()
   return data;
 }
 
-std::streamsize StreamImpl::read( size_t pos, unsigned char* data, std::streamsize maxlen )
+std::streamsize StreamImpl::read( size_t pos, unsigned char* data,
+                                  std::streamsize maxlen, bool* hit_eof ) const
 {
+  if (hit_eof)
+	  *hit_eof = false;
   // sanity checks
-  if (!_entry) 
+  if (!_entry)
 	  return 0;
-  if( !data ) 
+  if( !data )
 	  return 0;
-  if( maxlen == 0 ) 
+  if( maxlen == 0 )
 	  return 0;
   if ((maxlen + pos) > _entry->size())
   {
 	  maxlen = _entry->size() - pos;
-	  _state |= StreamImpl::Eof;
-  }
-  else
-  {
-	  _state &= StreamImpl::Eof;
+	  if (hit_eof)
+		  *hit_eof = true;
   }
 
   std::streamsize totalbytes = 0;
@@ -185,8 +188,14 @@ std::streamsize StreamImpl::read( size_t pos, unsigned char* data, std::streamsi
 
 std::streamsize StreamImpl::read( unsigned char* data, std::streamsize maxlen )
 {
-  std::streamsize bytes = read( tell(), data, maxlen );
+  bool hit_eof = false;
+  std::streamsize bytes = read( (size_t)tell(), data, maxlen, &hit_eof );
   _pos += bytes;
+
+  if (hit_eof)
+	  _state |= StreamImpl::Eof;
+  else
+	  _state &= StreamImpl::Eof;
 
   if (_pos == _entry->size())
 	  _state |= StreamImpl::Eof;

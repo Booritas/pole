@@ -67,6 +67,14 @@ public:
 	}
 
     int getch();
+	// Positional read: takes its offset as an argument, touches no cursor and
+	// no flags, and is therefore safe to call from several threads at once on
+	// one StreamImpl. `hit_eof`, when given, reports that the request ran past
+	// the end of the stream and was clamped -- which is the only thing the
+	// cursor-based overload needs in order to keep setting Eof exactly as it
+	// used to.
+	std::streamsize read( size_t pos, unsigned char* data, std::streamsize maxlen,
+	                      bool* hit_eof = 0 ) const;
     std::streamsize read( unsigned char* data, std::streamsize maxlen );
 
 	POLE::ULONG32 write(const unsigned char* data, POLE::ULONG32 maxlen);
@@ -74,7 +82,6 @@ public:
 // Implementation
 private:
 	void init();
-	std::streamsize read( size_t pos, unsigned char* data, std::streamsize maxlen );
 	void update_cache();
 
 	StorageIO* _io; 
@@ -86,7 +93,7 @@ private:
 	unsigned char* _cache_data; 
     std::streamsize _cache_size;
     std::streamsize _cache_pos;
-	int _state;
+	int _state = 0;
 
     // no default, copy or assign
     StreamImpl( );

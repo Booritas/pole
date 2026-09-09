@@ -110,3 +110,20 @@ TEST(storage, read_stream_string)
     std::string key = ole::readOleString(contents_stream->stream());
     ASSERT_EQ(key, std::string("Scaling124"));
 }
+
+TEST(stream, state_is_clean_on_open)
+{
+    std::string file_path = getTestFilePath("test1.bin");
+    ole::compound_document doc(file_path);
+    ASSERT_TRUE(doc.good());
+    auto image_storage = doc.find_storage("/Image");
+    ASSERT_TRUE(image_storage != doc.end());
+    auto content_stream = image_storage->find_stream("/Image/Contents");
+    ASSERT_TRUE(content_stream != image_storage->end());
+    ole::basic_stream& stream = content_stream->stream();
+    // A freshly opened stream has read nothing and failed at nothing.
+    // StreamImpl::_state used to be left uninitialised by init(), so both
+    // of these read indeterminate memory.
+    EXPECT_FALSE(stream.eof());
+    EXPECT_FALSE(stream.fail());
+}
