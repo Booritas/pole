@@ -162,3 +162,39 @@ TEST(stream, positional_read_reports_whether_it_ran)
     EXPECT_EQ(stream.read(buf.data(), 32), 4);
     EXPECT_TRUE(stream.eof());
 }
+
+// Every storage and stream the document enumerates must still be findable by
+// the path string the document itself reports -- which is what exercises the
+// DirTree path walk that Task 3 makes non-quadratic. Asserting particular
+// paths would test the fixture; this asserts the round-trip that makes the
+// optimisation safe.
+//
+// Deliberately does NOT use compound_document::path_exist(): it returns false
+// for every nested stream path in this very fixture, because it slices the
+// parent path with substr(0, size - ++pos) and lands mid-name. That is a
+// pre-existing defect, filed separately, and not something to depend on here.
+TEST(dirtree, every_reported_path_resolves)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+
+	int storages = 0, streams = 0;
+	for (auto it = doc.begin(); it != doc.end(); ++it)
+	{
+		++storages;
+		const std::string storagePath = it->string();
+		ASSERT_TRUE(doc.find_storage(storagePath) != doc.end())
+			<< "storage does not resolve: " << storagePath;
+		for (auto s = it->begin(); s != it->end(); ++s)
+		{
+			++streams;
+			auto owner = doc.find_storage(storagePath);
+			ASSERT_TRUE(owner != doc.end());
+			EXPECT_TRUE(owner->find_stream(s->string()) != owner->end())
+				<< "stream does not resolve: " << s->string();
+		}
+	}
+	EXPECT_EQ(storages, 16);
+	EXPECT_EQ(streams, 19);
+}
