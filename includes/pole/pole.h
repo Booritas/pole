@@ -102,6 +102,11 @@ public: // Attributes
   // Return the fail state of the Stream
   bool fail() const;
 
+  // Positional reads issued against the document so far. See
+  // PositionalFile::read_calls -- it is what makes "a contiguous stream costs
+  // one read, not one per block" assertable from a test.
+  unsigned long long read_calls() const;
+
 public: // Operations
 
   // Sets the read position.

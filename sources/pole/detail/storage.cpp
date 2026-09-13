@@ -130,6 +130,7 @@ bool PositionalFile::good() const
 ULONG32 PositionalFile::read_at( ULONG32 offset, unsigned char* dst, ULONG32 n ) const
 {
 	if( !good() || !dst ) return 0;
+	_read_calls.fetch_add( 1, std::memory_order_relaxed );
 
 #if !defined(WIN32)
 	// A read that makes no progress is retried a bounded number of times. An
@@ -451,6 +452,39 @@ ULONG32 StorageIO::loadBigBlocks( const std::vector<ULONG32>& blocks, unsigned c
   }
 
   return bytes;
+}
+
+ULONG32 StorageIO::loadBigBlockRun( ULONG32 firstBlock, ULONG32 nBlocks, ULONG32 offsetInFirst,
+                                    unsigned char* dst, ULONG32 n ) const
+{
+  // sentinel
+  if( !dst ) return 0;
+  if( !_pread && ( !_stream || !_stream->good() ) ) return 0;
+  if( nBlocks == 0 ) return 0;
+  if( n == 0 ) return 0;
+  if( !_bbat ) return 0;
+
+  const ULONG32 bs = _bbat->block_size();
+  if( bs == 0 || offsetInFirst >= bs ) return 0;
+
+  // The +1 is the header block, exactly as loadBigBlocks computes it: block
+  // number b begins at bs * (b+1).
+  const ULONG32 pos = bs * ( firstBlock + 1 ) + offsetInFirst;
+  const ULONG32 avail = nBlocks * bs - offsetInFirst;
+  ULONG32 p = ( n < avail ) ? n : avail;
+
+  // Same clamp loadBigBlocks applies per block, hoisted to the run. Tested
+  // before the subtraction rather than after, since these are unsigned.
+  if( pos >= _size ) return 0;
+  if( pos + p > _size ) p = _size - pos;
+
+  if( _pread )
+    return _pread->read_at( pos, dst, p );
+
+  std::lock_guard<std::mutex> lock( _stream_mutex );
+  _stream->seekg( pos );
+  _stream->read( (char*)dst, p );
+  return p;
 }
 
 ULONG32 StorageIO::loadBigBlock( ULONG32 block, unsigned char* data, ULONG32 maxlen ) const

@@ -166,22 +166,40 @@ std::streamsize StreamImpl::read( size_t pos, unsigned char* data,
     if( index >= _blocks.size() ) 
 		return 0;
     
-    unsigned char* buf = new unsigned char[ big_block_size ];
+    // Read a run of consecutively numbered blocks at a time rather than one
+    // block at a time. A run occupies one contiguous range of the file, so it
+    // costs one positional read; a sequentially written document is usually a
+    // single run end to end. Reading straight into data also removes the
+    // per-block bounce through a scratch buffer that the old loop copied out
+    // of -- for a whole-stream read that was a second full copy of the stream.
     size_t offset = pos % big_block_size;
     while( totalbytes < maxlen )
     {
       if( index >= _blocks.size() ) break;
-      ULONG32 read = _io->loadBigBlock( _blocks[index], buf, big_block_size );
-	  if (read != big_block_size)
-		  break;
-      std::streamsize count = big_block_size - offset;
-      if( count > maxlen-totalbytes ) count = maxlen-totalbytes;
-      memcpy( data+totalbytes, buf + offset, count );
-      totalbytes += count;
-      index++;
-      offset = 0;
+
+      size_t runEnd = index + 1;
+      while( runEnd < _blocks.size() && _blocks[runEnd] == _blocks[runEnd-1] + 1 )
+        ++runEnd;
+
+      const std::streamsize avail =
+        (std::streamsize)( runEnd - index ) * big_block_size - (std::streamsize)offset;
+      const std::streamsize want = ( avail < maxlen - totalbytes ) ? avail : maxlen - totalbytes;
+
+      const ULONG32 got = _io->loadBigBlockRun( _blocks[index], (ULONG32)( runEnd - index ),
+                                                (ULONG32)offset, data + totalbytes,
+                                                (ULONG32)want );
+      // A short run read is end of file or a read error. The old loop stopped
+      // on the same condition -- it required every block to come back full --
+      // and the caller reads the truncation off the returned count either way.
+      if( got == 0 ) break;
+      totalbytes += got;
+
+      const size_t consumed = offset + got;
+      index += consumed / big_block_size;
+      offset = consumed % big_block_size;
+
+      if( (std::streamsize)got < want ) break;
     }
-    delete [] buf;
 
   }
 

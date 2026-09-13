@@ -52,6 +52,9 @@ namespace ole
 			return _stream ? (std::streamsize)_stream->read_at( (unsigned long)offset,
 			                     (unsigned char*)buf, (unsigned long)n ) : 0;
 		}
+		// Positional reads issued against the document so far. See
+		// PositionalFile::read_calls.
+		unsigned long long read_calls() const { return _stream ? _stream->read_calls() : 0; }
 		// Size in bytes. Reads the directory entry, not the cursor, so callers
 		// no longer need seek(0, std::ios::end) to learn a length.
 		std::streamoff size() const

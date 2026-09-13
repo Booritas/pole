@@ -22,6 +22,7 @@
 
 #include <fstream>
 #include <list>
+#include <atomic>
 #include <mutex>
 #include "header.hpp"
 #include "dirtree.hpp"
@@ -54,7 +55,24 @@ public:
 	// Reads up to n bytes from offset. Returns bytes actually read.
 	ULONG32 read_at( ULONG32 offset, unsigned char* dst, ULONG32 n ) const;
 
+	// How many times read_at has been entered on this handle, over the handle's
+	// whole life and across every thread.
+	//
+	// This exists so that "a contiguous stream is read in one call, not one per
+	// block" is a property a test can assert rather than a claim in a comment.
+	// Reading a stream block by block costs the same bytes and produces the same
+	// output as reading it whole -- the syscall count is the only visible
+	// difference, so without this the regression it guards against is invisible.
+	unsigned long long read_calls() const { return _read_calls; }
+
 private:
+	// Relaxed: this is a diagnostic total, not a synchronisation point. Nothing
+	// orders anything against it, and a concurrent reader losing one increment
+	// would not change a verdict any test here draws from it.
+	// Initialised here rather than in each constructor: std::atomic has no
+	// zero-initialising default constructor before C++20, and there are two.
+	mutable std::atomic<unsigned long long> _read_calls{0};
+
 #if defined(WIN32)
 	void* _handle;
 #else
@@ -88,6 +106,10 @@ public:
 	void path( std::string& result) const { _dirtree->path(result); }
 	void listDirectory(std::list<std::string>&) const;
 	void listEntries(std::vector<const DirEntry*>& result) const;
+	// Positional reads issued against the file so far, or 0 for a document
+	// opened over an iostream, which has no positional handle. See
+	// PositionalFile::read_calls for why this is observable at all.
+	unsigned long long read_calls() const { return _pread ? _pread->read_calls() : 0; }
 	ULONG32 small_block_size() const { return (_sbat) ? _sbat->block_size() : 0; }
 	ULONG32 big_block_size() const { return (_bbat) ? _bbat->block_size() : 0; }
 	bool follow_small_block_table( ULONG32 start, std::vector<ULONG32>& chain ) const 
@@ -127,6 +149,16 @@ public:
 	void leaveDirectory() { return _dirtree->leaveDirectory(); }
 	ULONG32 loadSmallBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen) const;
     ULONG32 loadBigBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen) const;
+	// One positional read over nBlocks consecutively numbered big blocks,
+	// starting offsetInFirst bytes into the first, straight into dst.
+	//
+	// A run of blocks whose numbers ascend by one occupies one contiguous range
+	// of the file, so it needs one read rather than one per block. The caller
+	// finds the runs -- it is the only party that knows the block chain -- and
+	// this turns a run into a read. Returns bytes actually read, which is short
+	// only at end of file or on a read error.
+	ULONG32 loadBigBlockRun( ULONG32 firstBlock, ULONG32 nBlocks, ULONG32 offsetInFirst,
+	                         unsigned char* dst, ULONG32 n ) const;
 	ULONG32 saveBlock(ULONG32 block, const unsigned char* buffer, ULONG32 maxlen);
 	// Delete an entry identified by path, then save changes 
 	// made to the document by calling flush

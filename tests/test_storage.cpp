@@ -319,3 +319,114 @@ TEST(stream, const_borrow_does_not_bump_the_ref_count)
 	(void)sp->stream();
 	EXPECT_TRUE(sp->used());
 }
+
+// ---------------------------------------------------------------------------
+// Contiguous block runs are coalesced into one positional read.
+//
+// Reading a stream block by block and reading it whole return the same bytes,
+// so the syscall count is the only visible difference between the two -- which
+// is why StreamImpl exposes read_calls() at all. Without these, a change that
+// reinstated the per-block loop would pass every other test in this file.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+	// Resolves the first image item's pixel stream. /Image/Contents will not do
+	// here: it is 390 bytes, below the header's small-stream threshold, so it
+	// never reaches the big-block path these tests are about.
+	const ole::basic_stream& imageContents(ole::compound_document& doc)
+	{
+		auto storage = doc.find_storage("/Image/Item(0)");
+		EXPECT_TRUE(storage != doc.end());
+		auto sp = storage->find_stream("/Image/Item(0)/Contents");
+		EXPECT_TRUE(sp != storage->end());
+		return sp->stream();
+	}
+}
+
+TEST(stream, a_contiguous_stream_is_read_in_one_call)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	const ole::basic_stream& stream = imageContents(doc);
+
+	const std::streamoff size = stream.size();
+	ASSERT_GT(size, 64 * 1024) << "too small to distinguish per-block from coalesced";
+
+	std::vector<char> buf((size_t)size);
+	const unsigned long long before = stream.read_calls();
+	ASSERT_EQ(stream.read_at(0, buf.data(), size), size);
+	const unsigned long long calls = stream.read_calls() - before;
+
+	// The bound is deliberately loose and deliberately absolute. A per-block
+	// read costs size/block_size calls -- with this document's 512-byte
+	// sectors, over six thousand of them -- while a coalesced read costs one
+	// per discontiguity in the chain, which for a sequentially written document
+	// is one. Anything under a few dozen can only be coalescing; the test does
+	// not need to know the block size to say so, and stays honest if a future
+	// fixture uses 4096-byte sectors instead.
+	EXPECT_LT(calls, 64u)
+		<< "read issued " << calls << " positional reads for " << size
+		<< " bytes; a per-block loop over this stream issues thousands";
+}
+
+TEST(stream, coalescing_returns_the_same_bytes_as_a_block_at_a_time_read)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	const ole::basic_stream& stream = imageContents(doc);
+
+	const std::streamoff size = stream.size();
+	std::vector<char> whole((size_t)size);
+	ASSERT_EQ(stream.read_at(0, whole.data(), size), size);
+
+	// The same stream read 4096 bytes at a time, which is the shape the
+	// coalescing replaced. Any run-walking arithmetic error shows up here as a
+	// mismatch at the first block boundary it gets wrong.
+	std::vector<char> piecewise((size_t)size);
+	const std::streamsize step = 4096;
+	for (std::streamoff off = 0; off < size; off += step)
+	{
+		const std::streamsize want = (size - off < step) ? (std::streamsize)(size - off) : step;
+		ASSERT_EQ(stream.read_at(off, piecewise.data() + off, want), want) << "at offset " << off;
+	}
+	EXPECT_EQ(whole, piecewise);
+}
+
+TEST(stream, coalesced_reads_are_correct_at_every_alignment)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	const ole::basic_stream& stream = imageContents(doc);
+
+	const std::streamoff size = stream.size();
+	std::vector<char> whole((size_t)size);
+	ASSERT_EQ(stream.read_at(0, whole.data(), size), size);
+
+	// Offsets and lengths chosen to land either side of a block boundary for
+	// both sector sizes a compound document can use, 512 and 4096: an unaligned
+	// start, a read ending exactly on a boundary, one spanning several blocks,
+	// a single byte, and the tail.
+	const std::streamoff offsets[] = { 0, 1, 7, 511, 512, 513, 4095, 4096, 4097,
+	                                   8192, 12287, size - 1 };
+	const std::streamsize lengths[] = { 1, 2, 511, 512, 513, 4095, 4096, 4097, 9000 };
+
+	for (std::streamoff off : offsets)
+	{
+		for (std::streamsize len : lengths)
+		{
+			if (off >= size) continue;
+			const std::streamsize want = (off + len > size) ? (std::streamsize)(size - off) : len;
+			std::vector<char> part((size_t)len);
+			const std::streamsize got = stream.read_at(off, part.data(), len);
+			ASSERT_EQ(got, want) << "off=" << off << " len=" << len;
+			EXPECT_EQ(std::vector<char>(part.begin(), part.begin() + (size_t)got),
+			          std::vector<char>(whole.begin() + (size_t)off,
+			                            whole.begin() + (size_t)(off + got)))
+				<< "off=" << off << " len=" << len;
+		}
+	}
+}

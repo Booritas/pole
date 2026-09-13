@@ -53,6 +53,10 @@ public:
     std::streamsize tell() const { return _pos; }
 	bool fail() const { return ((_state & StreamImpl::Bad) != 0); }
 	bool eof() const { return ((_state & StreamImpl::Eof) != 0); }
+	// Positional reads issued against the document so far. See
+	// PositionalFile::read_calls -- it is what makes "a contiguous stream costs
+	// one read, not one per block" assertable.
+	unsigned long long read_calls() const { return _io ? _io->read_calls() : 0; }
 
 // Operations
 public:

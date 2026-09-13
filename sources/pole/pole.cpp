@@ -183,6 +183,11 @@ unsigned long Stream::read_at( unsigned long offset, unsigned char* data, unsign
   return impl ? (unsigned long)impl->read( (size_t)offset, data, (std::streamsize)maxlen ) : 0;
 }
 
+unsigned long long Stream::read_calls() const
+{
+  return impl ? impl->read_calls() : 0;
+}
+
 Stream& Stream::write(const unsigned char* data, POLE::ULONG32 len)
 {
   //#pragma warning( disable : 4267 ) // conversion from 'size_t' to 'unsigned int'
