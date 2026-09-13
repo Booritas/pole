@@ -542,6 +542,59 @@ ULONG32 StorageIO::loadSmallBlocks( const std::vector<ULONG32>& blocks, unsigned
   return bytes;
 }
 
+ULONG32 StorageIO::loadSmallBlockRun( const std::vector<ULONG32>& blocks, size_t firstIndex,
+                                      ULONG32 offsetInFirst, unsigned char* dst, ULONG32 n ) const
+{
+  // sentinel
+  if( !dst ) return 0;
+  if( !_pread && ( !_stream || !_stream->good() ) ) return 0;
+  if( blocks.empty() || firstIndex >= blocks.size() ) return 0;
+  if( n == 0 ) return 0;
+  if( !_bbat || !_sbat ) return 0;
+
+  const ULONG32 bbs = _bbat->block_size();
+  const ULONG32 sbs = _sbat->block_size();
+  if( bbs == 0 || sbs == 0 || offsetInFirst >= sbs ) return 0;
+
+  unsigned char* buf = new unsigned char[ bbs ];
+  // Which big block of the container buf currently holds. The container is
+  // indexed through _sb_blocks, so this is an index into that, and no valid
+  // index equals the sentinel.
+  size_t cached = (size_t)-1;
+
+  ULONG32 bytes = 0;
+  ULONG32 offset = offsetInFirst;
+  for( size_t i = firstIndex; i < blocks.size() && bytes < n; ++i )
+  {
+    // Where this small block sits inside the container stream, and which of
+    // the container's big blocks that lands in.
+    const ULONG32 pos = blocks[i] * sbs;
+    const size_t bbindex = pos / bbs;
+    if( bbindex >= _sb_blocks.size() ) break;
+
+    if( bbindex != cached )
+    {
+      if( loadBigBlock( _sb_blocks[ bbindex ], buf, bbs ) != bbs ) break;
+      cached = bbindex;
+    }
+
+    const ULONG32 inBlock = pos % bbs + offset;
+    // Never past the end of this small block, of the big block holding it, or
+    // of what the caller asked for.
+    ULONG32 p = sbs - offset;
+    if( p > bbs - inBlock ) p = bbs - inBlock;
+    if( p > n - bytes ) p = n - bytes;
+    if( p == 0 ) break;
+
+    memcpy( dst + bytes, buf + inBlock, p );
+    bytes += p;
+    offset = 0;
+  }
+
+  delete[] buf;
+  return bytes;
+}
+
 ULONG32 StorageIO::loadSmallBlock( ULONG32 block, unsigned char* data, ULONG32 maxlen ) const
 {
   // sentinel

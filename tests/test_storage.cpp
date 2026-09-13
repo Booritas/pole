@@ -430,3 +430,85 @@ TEST(stream, coalesced_reads_are_correct_at_every_alignment)
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// The same coalescing, for streams below the small-stream threshold.
+//
+// Small blocks are packed inside the big blocks of the small-block container
+// stream, so consecutive small blocks usually share a big block. Reading one
+// small block at a time re-read that big block once per small block.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+	// /Image/Contents is 390 bytes in test1.bin -- under the header's threshold,
+	// so it is stored as small blocks and exercises the path above.
+	const ole::basic_stream& smallStream(ole::compound_document& doc)
+	{
+		auto storage = doc.find_storage("/Image");
+		EXPECT_TRUE(storage != doc.end());
+		auto sp = storage->find_stream("/Image/Contents");
+		EXPECT_TRUE(sp != storage->end());
+		return sp->stream();
+	}
+}
+
+TEST(stream, a_small_stream_does_not_reread_its_container_block_per_small_block)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	const ole::basic_stream& stream = smallStream(doc);
+
+	const std::streamoff size = stream.size();
+	ASSERT_GT(size, 0);
+	ASSERT_LT(size, 4096) << "fixture must be below the small-stream threshold";
+
+	std::vector<char> buf((size_t)size);
+	const unsigned long long before = stream.read_calls();
+	ASSERT_EQ(stream.read_at(0, buf.data(), size), size);
+	const unsigned long long calls = stream.read_calls() - before;
+
+	// These 390 bytes occupy seven 64-byte small blocks -- 39..44 and 75 -- and
+	// those fall in three distinct big blocks of the container, 4, 5 and 9. So
+	// three reads is this fixture's optimum, not one: the chain is contiguous
+	// for six blocks and then jumps. Reading a small block at a time cost one
+	// big-block read per small block, so seven; the bound is what separates the
+	// two, and it is a property of a fixture checked into this repository
+	// rather than a number that drifts.
+	EXPECT_LE(calls, 3u)
+		<< "read issued " << calls << " positional reads for a " << size
+		<< "-byte stream spanning three container blocks; one read per small "
+		<< "block would be seven";
+}
+
+TEST(stream, small_stream_reads_are_correct_at_every_alignment)
+{
+	std::string file_path = getTestFilePath("test1.bin");
+	ole::compound_document doc(file_path);
+	ASSERT_TRUE(doc.good());
+	const ole::basic_stream& stream = smallStream(doc);
+
+	const std::streamoff size = stream.size();
+	std::vector<char> whole((size_t)size);
+	ASSERT_EQ(stream.read_at(0, whole.data(), size), size);
+
+	// Offsets either side of a 64-byte small-block boundary, and lengths that
+	// stop short of, land on, and run past the end of the stream.
+	for (std::streamoff off = 0; off < size; ++off)
+	{
+		for (std::streamsize len : { (std::streamsize)1, (std::streamsize)63,
+		                             (std::streamsize)64, (std::streamsize)65,
+		                             (std::streamsize)size })
+		{
+			const std::streamsize want = (off + len > size) ? (std::streamsize)(size - off) : len;
+			std::vector<char> part((size_t)len);
+			const std::streamsize got = stream.read_at(off, part.data(), len);
+			ASSERT_EQ(got, want) << "off=" << off << " len=" << len;
+			ASSERT_EQ(std::vector<char>(part.begin(), part.begin() + (size_t)got),
+			          std::vector<char>(whole.begin() + (size_t)off,
+			                            whole.begin() + (size_t)(off + got)))
+				<< "off=" << off << " len=" << len;
+		}
+	}
+}

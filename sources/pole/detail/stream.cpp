@@ -135,23 +135,13 @@ std::streamsize StreamImpl::read( size_t pos, unsigned char* data,
     if( index >= _blocks.size() ) 
 		return 0;
 
-    unsigned char* buf = new unsigned char[ small_block_size ];
-    size_t offset = pos % small_block_size;
-    while( totalbytes < maxlen )
-    {
-      if( index >= _blocks.size() ) break;
-      ULONG32 read = _io->loadSmallBlock( _blocks[index], buf, small_block_size );
-	  if (read != small_block_size)
-		  break;
-      std::streamsize count = small_block_size - offset;
-      if(count > (maxlen - totalbytes)) 
-		  count = maxlen - totalbytes;
-      memcpy(data + totalbytes, buf + offset, count);
-      totalbytes += count;
-      offset = 0;
-      index++;
-    }
-    delete[] buf;
+    // One pass over the small blocks rather than one call per block. Each
+    // loadSmallBlock re-entered loadSmallBlocks with a one-element chain and
+    // reloaded the containing big block, so a stream whose small blocks all
+    // share one big block read that block once per small block.
+    const size_t offset = pos % small_block_size;
+    totalbytes = _io->loadSmallBlockRun( _blocks, index, (ULONG32)offset,
+                                         data, (ULONG32)maxlen );
 
   }
   else

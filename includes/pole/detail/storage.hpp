@@ -149,6 +149,17 @@ public:
 	void leaveDirectory() { return _dirtree->leaveDirectory(); }
 	ULONG32 loadSmallBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen) const;
     ULONG32 loadBigBlock(ULONG32 block, unsigned char* buffer, ULONG32 maxlen) const;
+	// Copies n bytes out of the small blocks listed in blocks, starting at
+	// blocks[firstIndex] and offsetInFirst bytes into it.
+	//
+	// Small blocks are packed inside the big blocks of the small-block
+	// container stream, so consecutive small blocks usually share one big
+	// block. This keeps the big block it last loaded and reloads only when the
+	// run crosses into a different one, where reading a small block at a time
+	// re-read the containing big block once per small block. Returns bytes
+	// actually copied.
+	ULONG32 loadSmallBlockRun( const std::vector<ULONG32>& blocks, size_t firstIndex,
+	                           ULONG32 offsetInFirst, unsigned char* dst, ULONG32 n ) const;
 	// One positional read over nBlocks consecutively numbered big blocks,
 	// starting offsetInFirst bytes into the first, straight into dst.
 	//
